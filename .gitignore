@@ -1,3 +1,21 @@
+# ML / DreamBooth specific
+models/*
+!models/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+reports/images/
+wandb/
+runs/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
