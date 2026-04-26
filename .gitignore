@@ -9,6 +9,8 @@ data/processed/*
 !data/processed/.gitkeep
 reports/images/
 wandb/
+local/
+.vscode/
 runs/
 *.pt
 *.pth
