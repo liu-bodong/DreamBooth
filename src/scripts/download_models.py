@@ -13,15 +13,25 @@ from huggingface_hub import snapshot_download
 # btw, if some fail, you have to make a HF_TOKEN and export it in your environment
 # and go to the HF website and ask for permission to download the model
 MODEL_SPECS = [
-    {
-        "name": "sd15",
-        "kind": "trainable_full",
-        "base_repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
-    },
+    # {
+    #     "name": "sd15",
+    #     "kind": "trainable_full",
+    #     "base_repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+    # },
     {
         "name": "sdxl",
         "kind": "trainable_full",
         "base_repo": "stabilityai/stable-diffusion-xl-base-1.0",
+    },
+    {
+        "name": "sd3_medium",
+        "kind": "trainable_full",
+        "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
+    },
+    {
+        "name": "sd35_medium",
+        "kind": "trainable_full",
+        "base_repo": "stabilityai/stable-diffusion-3.5-medium",
     },
     # {
     #     "name": "sd3_medium",
