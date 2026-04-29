@@ -7,6 +7,9 @@ from typing import Any
 import torch
 import yaml
 from torch.utils.data import Dataset
+from torchvision import transforms
+
+from PIL import Image
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
@@ -58,9 +61,9 @@ class DreamBoothDataset(Dataset):
         self,
         instance_data_dir: str | Path,
         instance_prompt: str,
+        image_size: int,
         class_data_dir: str | Path | None = None,
         class_prompt: str | None = None,
-        image_size: int = 512,
         center_crop: bool = False,
     ) -> None:
         self.instance_images = discover_images(instance_data_dir)
@@ -75,21 +78,21 @@ class DreamBoothDataset(Dataset):
 
     def __len__(self) -> int:
         return max(len(self.instance_images), len(self.class_images) if self.class_images else 0)
-
-    def _preprocess_image(self, path: Path) -> torch.Tensor:
-        from PIL import Image
-
-        image = Image.open(path).convert("RGB")
-        if self.center_crop:
-            min_side = min(image.size)
-            left = (image.width - min_side) // 2
-            top = (image.height - min_side) // 2
-            image = image.crop((left, top, left + min_side, top + min_side))
-        image = image.resize((self.image_size, self.image_size), Image.BICUBIC)
+    
+    def _preprocess_image(self, path: Path, mode: str, width: int, height: int) -> torch.Tensor:
+        image = Image.open(path).convert(mode)
+        # check if image resolution matches desired resolution
+        if image.size != (width, height):
+            if mode == "upsample":
+                image = transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BICUBIC)(image)
+            else:
+                raise ValueError(f"Image resolution does not match desired resolution: {image.size} != ({width}, {height})")
+        # convert to tensor
         tensor = torch.ByteTensor(torch.ByteStorage.from_buffer(image.tobytes()))
-        tensor = tensor.view(image.size[1], image.size[0], 3).float()
+        tensor = tensor.view(image.size[1], image.size[0], len(image.getbands())).float()
         tensor = tensor.permute(2, 0, 1) / 127.5 - 1.0
-        return tensor.contiguous()
+        return tensor.contiguous()      
+            
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         item: dict[str, Any] = {}
