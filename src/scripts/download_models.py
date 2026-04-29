@@ -14,12 +14,6 @@ from huggingface_hub import snapshot_download
 # and go to the HF website and ask for permission to download the model
 MODEL_SPECS = [
     {
-        "name": "flux2_klein_4b",
-        "kind": "trainable_full",
-        "base_repo": "black-forest-labs/FLUX.2-klein-4B",
-        "reason": "candidate preserved from original REPO_IDS; verify repo layout before enabling",
-    },
-    {
         "name": "sd15",
         "kind": "trainable_full",
         "base_repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
@@ -29,48 +23,47 @@ MODEL_SPECS = [
         "kind": "trainable_full",
         "base_repo": "stabilityai/stable-diffusion-xl-base-1.0",
     },
+    # {
+    #     "name": "sd3_medium",
+    #     "kind": "trainable_full",
+    #     "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
+    #     "reason": "larger training footprint; not default for lean consumer-VRAM runs",
+    # },
     {
-        "name": "sd3_medium",
+        "name": "flux2_klein_base_4b",
         "kind": "trainable_full",
-        "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
-    },
-    {
-        "name": "sd3_medium_gguf",
-        "kind": "gguf_with_base_config",
-        "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
-        "quant_repo": "second-state/stable-diffusion-3-medium-GGUF",
-    },
-    {
-        "name": "sd35_large_gguf",
-        "kind": "gguf_with_base_config",
-        "base_repo": "stabilityai/stable-diffusion-3.5-large",
-        "quant_repo": "city96/stable-diffusion-3.5-large-gguf",
-    },
-    {
-        "name": "flux2_klein_9b_kv_fp8",
-        "kind": "quantized_inference",
-        "quant_repo": "black-forest-labs/FLUX.2-klein-9b-kv-fp8",
-        "reason": "inference-oriented FP8/KV artifact; kept active due manageable checkpoint size",
+        "base_repo": "black-forest-labs/FLUX.2-klein-base-4B",
+        "reason": "large base for full training; keep disabled by default",
     },
     # {
-    #     "name": "flux2_dev",
-    #     "kind": "trainable_full",
-    #     "base_repo": "black-forest-labs/FLUX.2-dev",
-    #     "reason": "large; not active by default",
+    #     "name": "flux2_klein_4b_fp8_diffusers",
+    #     "kind": "quantized_with_base_config",
+    #     "base_repo": "black-forest-labs/FLUX.2-klein-4B",
+    #     "quant_repo": "Photoroom/FLUX.2-klein-4b-fp8-diffusers",
+    #     "reason": "quantized inference artifact; not a primary training base",
     # },
     # {
-    #     "name": "sd35_large",
-    #     "kind": "trainable_full",
+    #     "name": "sd3_medium_gguf",
+    #     "kind": "quantized_with_base_config",
+    #     "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
+    #     "quant_repo": "second-state/stable-diffusion-3-medium-GGUF",
+    #     "reason": "GGUF quantized weights are inference-oriented",
+    # },
+    # {
+    #     "name": "sd35_large_gguf",
+    #     "kind": "quantized_with_base_config",
     #     "base_repo": "stabilityai/stable-diffusion-3.5-large",
-    #     "reason": "large; not active by default",
-    # },
-    # {
-    #     "name": "flux2_dev_nvfp4",
-    #     "kind": "quantized_inference",
-    #     "quant_repo": "black-forest-labs/FLUX.2-dev-NVFP4",
-    #     "reason": "too large to download currently, around 20GB",
+    #     "quant_repo": "city96/stable-diffusion-3.5-large-gguf",
+    #     "reason": "quantized + large; inference-oriented and heavy for training",
     # },
 ]
+
+# Candidate repos kept for reference but not active by default:
+# "black-forest-labs/FLUX.2-klein-4B"
+# "black-forest-labs/FLUX.2-dev"
+# "stabilityai/stable-diffusion-3.5-large"
+# "black-forest-labs/FLUX.2-dev-NVFP4"  # too large / inference artifact
+# "black-forest-labs/FLUX.2-klein-9b-kv-fp8"  # inference-oriented FP8/KV artifact
 
 DOWNLOAD_MARKER = ".download_complete.json"
 FULL_IGNORE_PATTERNS = ["*.ckpt", "*.h5", "*.msgpack", "onnx/*", "flax/*", "*.onnx", "*.tflite"]
@@ -87,8 +80,7 @@ STRUCTURE_ALLOW_PATTERNS = [
     "README.md",
     "LICENSE*",
 ]
-GGUF_ALLOW_PATTERNS = ["*.gguf", "*.json", "README.md", "LICENSE*"]
-GENERIC_QUANT_ALLOW_PATTERNS = ["*.safetensors", "*.gguf", "*.json", "README.md", "LICENSE*"]
+QUANT_ALLOW_PATTERNS = ["*.gguf", "*.safetensors", "*.json", "README.md", "LICENSE*"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,7 +96,12 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument(
         "--quant-only",
         action="store_true",
-        help="Download only quantized specs (gguf_with_base_config and quantized_inference).",
+        help="Download only quantized_with_base_config specs.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-download even when validation markers exist.",
     )
     return parser.parse_args()
 
@@ -148,15 +145,12 @@ def validate_download(download_dir: Path, kind: str, component: str) -> bool:
         has_weights = path_has_match(download_dir, "*.safetensors") or path_has_match(download_dir, "*.bin")
         return has_model_index and has_config and has_weights
 
-    if kind == "gguf_with_base_config" and component == "structure":
+    if kind == "quantized_with_base_config" and component == "structure":
         has_model_index = (download_dir / "model_index.json").exists()
         has_config = path_has_match(download_dir, "config.json")
         return has_model_index and has_config
 
-    if kind == "gguf_with_base_config" and component == "quant_weights":
-        return path_has_match(download_dir, "*.gguf")
-
-    if kind == "quantized_inference" and component == "quant_weights":
+    if kind == "quantized_with_base_config" and component == "quant_weights":
         return path_has_match(download_dir, "*.gguf") or path_has_match(download_dir, "*.safetensors")
 
     return False
@@ -175,10 +169,16 @@ def is_download_complete(
 
 def write_download_marker(
     download_dir: Path,
+    model_name: str,
     repo_id: str,
+    kind: str,
+    component: str,
 ) -> None:
     payload = {
+        "model_name": model_name,
         "repo_id": repo_id,
+        "kind": kind,
+        "component": component,
         "downloaded_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     marker_path(download_dir).write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -225,7 +225,7 @@ def download_quant_weights(repo_id: str, output_path: Path, token: str | None) -
         repo_id=repo_id,
         local_dir=str(output_path),
         token=token,
-        allow_patterns=GGUF_ALLOW_PATTERNS,
+        allow_patterns=QUANT_ALLOW_PATTERNS,
     )
 
 
@@ -233,7 +233,7 @@ def filtered_specs(args: argparse.Namespace) -> list[dict]:
     if args.trainable_only:
         return [spec for spec in MODEL_SPECS if spec["kind"] == "trainable_full"]
     if args.quant_only:
-        return [spec for spec in MODEL_SPECS if spec["kind"] in {"gguf_with_base_config", "quantized_inference"}]
+        return [spec for spec in MODEL_SPECS if spec["kind"] == "quantized_with_base_config"]
     return MODEL_SPECS
 
 
@@ -262,17 +262,20 @@ def main() -> None:
             migrate_existing_repo_folder(output_dir, repo_id, component_dir)
             component_dir.mkdir(parents=True, exist_ok=True)
 
-            if is_download_complete(component_dir, kind, component):
+            if not args.force and is_download_complete(component_dir, kind, component):
                 print(f"[SKIP] {model_name}/{component} <- {repo_id}")
                 counters[bucket]["skipped"] += 1
                 return
 
             print(f"[DL]   {model_name}/{component} <- {repo_id}")
             try:
+                if args.force and component_dir.exists():
+                    shutil.rmtree(component_dir)
+                    component_dir.mkdir(parents=True, exist_ok=True)
                 downloader(repo_id, component_dir, token)
                 if not validate_download(component_dir, kind, component):
                     raise ValueError("validation failed after download")
-                write_download_marker(component_dir, repo_id)
+                write_download_marker(component_dir, model_name, repo_id, kind, component)
                 counters[bucket]["downloaded"] += 1
             except Exception as exc:  # noqa: BLE001
                 print(f"[FAIL] {model_name}/{component} <- {repo_id}: {exc}")
@@ -288,10 +291,8 @@ def main() -> None:
 
         if kind == "trainable_full":
             process_component("full", spec["base_repo"], "full", download_full_model)
-        elif kind == "gguf_with_base_config":
+        elif kind == "quantized_with_base_config":
             process_component("structure", spec["base_repo"], "structure", download_structure_only)
-            process_component("quant_weights", spec["quant_repo"], "quant_weights", download_quant_weights)
-        elif kind == "quantized_inference":
             process_component("quant_weights", spec["quant_repo"], "quant_weights", download_quant_weights)
 
     print("\nDownload summary")
