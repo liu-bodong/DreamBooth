@@ -51,7 +51,9 @@ def main():
         set_seed(config["seed"])
 
     base_model_path = get_config_value(config, "pretrained_model_path")
-    with_prior_preservation = get_config_value(config, "with_prior_preservation", True)
+    
+    # PPS is replaced by lora so default is False
+    with_prior_preservation = get_config_value(config, "with_prior_preservation", False)
     train_text_encoder_lora = get_config_value(config, "train_text_encoder_lora", False)
 
     pipeline = StableDiffusionPipeline.from_pretrained(
@@ -59,10 +61,19 @@ def main():
         safety_checker=None,
         requires_safety_checker=False,
     )
+    
     tokenizer = pipeline.tokenizer
     text_encoder = pipeline.text_encoder
     vae = pipeline.vae
-    unet = pipeline.unet
+    
+    # check if model has unet or transformer, and raise error if neither
+    if hasattr(pipeline, "unet"):
+        unet = pipeline.unet
+    elif hasattr(pipeline, "transformer"):
+        unet = pipeline.transformer
+    else:
+        raise ValueError("The provided pipeline does not have a UNet or Transformer.")
+    
     noise_scheduler = cast(DDPMScheduler, DDPMScheduler.from_config(pipeline.scheduler.config))
     del pipeline
 

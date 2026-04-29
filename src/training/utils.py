@@ -80,6 +80,10 @@ class DreamBoothDataset(Dataset):
         return max(len(self.instance_images), len(self.class_images) if self.class_images else 0)
     
     def _preprocess_image(self, path: Path, mode: str, width: int, height: int) -> torch.Tensor:
+        """
+        Preprocesses an image by loading it, resizing if necessary, and converting to a normalized tensor.
+        The preprocess image has dtype of float32 and pixel values in the range [-1, 1].
+        """
         image = Image.open(path).convert(mode)
         # check if image resolution matches desired resolution
         if image.size != (width, height):
@@ -88,13 +92,13 @@ class DreamBoothDataset(Dataset):
             else:
                 raise ValueError(f"Image resolution does not match desired resolution: {image.size} != ({width}, {height})")
         # convert to tensor
-        tensor = torch.ByteTensor(torch.ByteStorage.from_buffer(image.tobytes()))
+        tensor = torch.uint8(torch.ByteStorage.from_buffer(image.tobytes()))
         tensor = tensor.view(image.size[1], image.size[0], len(image.getbands())).float()
         tensor = tensor.permute(2, 0, 1) / 127.5 - 1.0
-        return tensor.contiguous()      
+        return tensor.contiguous()   
             
 
-    def __getitem__(self, idx: int) -> dict[str, Any]:
+    def __getitem__(self, idx: int, type: str) -> dict[str, Any]:
         item: dict[str, Any] = {}
 
         inst_path = self.instance_images[idx % len(self.instance_images)]
