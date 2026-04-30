@@ -1,0 +1,3 @@
+instance_prompt_template: "a photo of {unique_token} {class_name}"
+class_prompt_template: "a photo of {class_name}"
+validation_prompt_template: "a photo of {unique_token} {class_name}"

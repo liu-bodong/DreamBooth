@@ -36,6 +36,128 @@ def discover_images(image_dir: str | Path) -> list[Path]:
     return images
 
 
+def count_images(image_dir: str | Path) -> int:
+    root = Path(image_dir)
+    if not root.exists() or not root.is_dir():
+        return 0
+    return sum(1 for p in root.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+
+
+def compute_class_image_target(
+    num_instance_images: int,
+    class_images_per_instance: int,
+) -> int:
+    if num_instance_images <= 0:
+        raise ValueError("num_instance_images must be > 0.")
+    if class_images_per_instance <= 0:
+        raise ValueError("class_images_per_instance must be > 0.")
+    return class_images_per_instance * num_instance_images
+
+
+def get_config_value(config: dict[str, Any], key: str) -> Any:
+    if key not in config:
+        raise ValueError(f"Missing required config key: {key}")
+    return config.get(key)
+
+
+def resolve_base_config_runtime_values(
+    config: dict[str, Any],
+    subject_override: str | None = None,
+) -> dict[str, Any]:
+    resolved = dict(config)
+
+    subject_name = subject_override or resolved.get("subject_name")
+    if not isinstance(subject_name, str) or not subject_name:
+        raise ValueError("Missing subject_name. Set it in base config or pass --subject.")
+    resolved["subject_name"] = subject_name
+
+    instance_data_dir = resolved.get("instance_data_dir")
+    if not instance_data_dir:
+        instance_root = resolved.get("instance_data_root", "data/processed/instance")
+        resolved["instance_data_dir"] = str(Path(str(instance_root)) / subject_name)
+
+    class_name = resolved.get("class_name")
+    if not class_name:
+        subject_class_map = resolved.get("subject_class_map", {})
+        if isinstance(subject_class_map, dict):
+            class_name = subject_class_map.get(subject_name)
+    if not isinstance(class_name, str) or not class_name:
+        class_name = subject_name
+    resolved["class_name"] = class_name
+
+    class_data_dir = resolved.get("class_data_dir")
+    if not class_data_dir:
+        class_root = resolved.get("class_data_root", "data/processed/class")
+        class_dir_name = class_name.replace(" ", "_")
+        resolved["class_data_dir"] = str(Path(str(class_root)) / class_dir_name)
+
+    unique_token = resolved.get("unique_token")
+    if unique_token is not None and (not isinstance(unique_token, str) or not unique_token):
+        raise ValueError("unique_token must be a non-empty string when provided.")
+    if unique_token is not None:
+        resolved["unique_token"] = unique_token
+
+    prompt_templates: dict[str, Any] = {}
+    prompt_templates_path = resolved.get("prompt_templates_path", "configs/prompt_templates.yaml")
+    if isinstance(prompt_templates_path, str) and Path(prompt_templates_path).exists():
+        loaded_templates = load_yaml_config(prompt_templates_path)
+        if isinstance(loaded_templates, dict):
+            prompt_templates = loaded_templates
+
+    if not resolved.get("instance_prompt"):
+        token_for_prompt = resolved.get("unique_token")
+        if not isinstance(token_for_prompt, str) or not token_for_prompt:
+            raise ValueError(
+                "Missing unique_token for prompt generation. Set unique_token or set instance_prompt."
+            )
+        template = str(
+            resolved.get(
+                "instance_prompt_template",
+                prompt_templates.get("instance_prompt_template", "a photo of {unique_token} {class_name}"),
+            )
+        )
+        resolved["instance_prompt"] = template.format(
+            unique_token=token_for_prompt,
+            class_name=class_name,
+        )
+
+    if not resolved.get("class_prompt"):
+        template = str(
+            resolved.get(
+                "class_prompt_template",
+                prompt_templates.get("class_prompt_template", "a photo of {class_name}"),
+            )
+        )
+        resolved["class_prompt"] = template.format(class_name=class_name)
+
+    if not resolved.get("validation_prompt"):
+        template = str(
+            resolved.get(
+                "validation_prompt_template",
+                prompt_templates.get(
+                    "validation_prompt_template",
+                    resolved.get(
+                        "instance_prompt_template",
+                        prompt_templates.get("instance_prompt_template", "a photo of {unique_token} {class_name}"),
+                    ),
+                ),
+            )
+        )
+        token_for_prompt = resolved.get("unique_token")
+        if "{unique_token}" in template:
+            if not isinstance(token_for_prompt, str) or not token_for_prompt:
+                raise ValueError(
+                    "Missing unique_token for validation_prompt generation. Set unique_token or validation_prompt."
+                )
+            resolved["validation_prompt"] = template.format(
+                unique_token=token_for_prompt,
+                class_name=class_name,
+            )
+        else:
+            resolved["validation_prompt"] = template.format(class_name=class_name)
+
+    return resolved
+
 @dataclass(frozen=True)
 class PromptBatch:
     input_ids: torch.Tensor
@@ -77,28 +199,23 @@ class DreamBoothDataset(Dataset):
             raise ValueError("class_prompt is required when class_data_dir is provided.")
 
     def __len__(self) -> int:
-        return max(len(self.instance_images), len(self.class_images) if self.class_images else 0)
-    
-    def _preprocess_image(self, path: Path, mode: str, width: int, height: int) -> torch.Tensor:
-        """
-        Preprocesses an image by loading it, resizing if necessary, and converting to a normalized tensor.
-        The preprocess image has dtype of float32 and pixel values in the range [-1, 1].
-        """
-        image = Image.open(path).convert(mode)
-        # check if image resolution matches desired resolution
-        if image.size != (width, height):
-            if mode == "upsample":
-                image = transforms.Resize((height, width), interpolation=transforms.InterpolationMode.BICUBIC)(image)
-            else:
-                raise ValueError(f"Image resolution does not match desired resolution: {image.size} != ({width}, {height})")
-        # convert to tensor
-        tensor = torch.uint8(torch.ByteStorage.from_buffer(image.tobytes()))
-        tensor = tensor.view(image.size[1], image.size[0], len(image.getbands())).float()
-        tensor = tensor.permute(2, 0, 1) / 127.5 - 1.0
-        return tensor.contiguous()   
-            
+        if self.class_images:
+            return max(len(self.instance_images), len(self.class_images))
+        return len(self.instance_images)
 
-    def __getitem__(self, idx: int, type: str) -> dict[str, Any]:
+    def _preprocess_image(self, path: Path) -> torch.Tensor:
+        image = Image.open(path).convert("RGB")
+        if self.center_crop:
+            min_size = min(image.size)
+            left = (image.width - min_size) // 2
+            top = (image.height - min_size) // 2
+            image = image.crop((left, top, left + min_size, top + min_size))
+        image = image.resize((self.image_size, self.image_size), resample=Image.BICUBIC)
+        tensor = transforms.ToTensor()(image)
+        tensor = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])(tensor)
+        return tensor.contiguous()
+
+    def __getitem__(self, idx: int) -> dict[str, Any]:
         item: dict[str, Any] = {}
 
         inst_path = self.instance_images[idx % len(self.instance_images)]
@@ -155,13 +272,30 @@ def save_validation_images(
     if generator_seed is not None:
         generator = torch.Generator(device=pipeline.device).manual_seed(generator_seed + step)
 
+    unet_dtype = next(pipeline.unet.parameters()).dtype
+    device_type = pipeline.device.type
+    use_autocast = device_type in {"cuda", "mps"} and unet_dtype in {torch.float16, torch.bfloat16}
+    vae_dtype = next(pipeline.vae.parameters()).dtype
+    if vae_dtype in {torch.float16, torch.bfloat16}:
+        # Decode-time dtype mismatches can happen on some stacks; use fp32 VAE for stable validation.
+        pipeline.vae.to(dtype=torch.float32)
+
     with torch.no_grad():
-        images = pipeline(
-            prompt=[prompt] * num_images,
-            guidance_scale=guidance_scale,
-            num_inference_steps=num_inference_steps,
-            generator=generator,
-        ).images
+        if use_autocast:
+            with torch.autocast(device_type=device_type, dtype=unet_dtype):
+                images = pipeline(
+                    prompt=[prompt] * num_images,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=num_inference_steps,
+                    generator=generator,
+                ).images
+        else:
+            images = pipeline(
+                prompt=[prompt] * num_images,
+                guidance_scale=guidance_scale,
+                num_inference_steps=num_inference_steps,
+                generator=generator,
+            ).images
 
     for index, image in enumerate(images):
         file_path = out_dir / f"step_{step:06d}_{index:02d}.png"

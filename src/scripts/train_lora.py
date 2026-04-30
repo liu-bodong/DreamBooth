@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import math
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
@@ -20,41 +20,42 @@ from src.training.utils import (
     collate_dreambooth_batch,
     load_yaml_config,
     save_validation_images,
+    get_config_value,
+    resolve_base_config_runtime_values,
 )
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="LoRA DreamBooth fine-tuning.")
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config file.")
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="Path to base YAML config file.",
+    )
     return parser.parse_args()
-
-
-def get_config_value(config: dict[str, Any], key: str, default: Any = None) -> Any:
-    if key not in config and default is None:
-        raise ValueError(f"Missing required config key: {key}")
-    return config.get(key, default)
 
 
 def main():
     args = parse_args()
-    config = load_yaml_config(args.config)
+    config = resolve_base_config_runtime_values(load_yaml_config(args.config))
 
     output_dir = Path(get_config_value(config, "output_dir"))
     output_dir.mkdir(parents=True, exist_ok=True)
 
     accelerator = Accelerator(
-        gradient_accumulation_steps=get_config_value(config, "gradient_accumulation_steps", 1),
-        mixed_precision=get_config_value(config, "mixed_precision", "fp16"),
-        log_with=get_config_value(config, "log_with", None),
+        gradient_accumulation_steps=get_config_value(config, "gradient_accumulation_steps"),
+        mixed_precision=get_config_value(config, "mixed_precision"),
+        log_with=get_config_value(config, "log_with"),
         project_dir=str(output_dir / "logs"),
     )
-    if get_config_value(config, "seed", None) is not None:
+    if get_config_value(config, "seed") is not None:
         set_seed(config["seed"])
 
     base_model_path = get_config_value(config, "pretrained_model_path")
     
     # PPS is replaced by lora so default is False
-    with_prior_preservation = get_config_value(config, "with_prior_preservation", False)
-    train_text_encoder_lora = get_config_value(config, "train_text_encoder_lora", False)
+    with_prior_preservation = get_config_value(config, "with_prior_preservation")
+    train_text_encoder_lora = get_config_value(config, "train_text_encoder_lora")
 
     pipeline = StableDiffusionPipeline.from_pretrained(
         base_model_path,
@@ -81,9 +82,9 @@ def main():
     text_encoder.requires_grad_(False)
     unet.requires_grad_(False)
 
-    lora_rank = get_config_value(config, "lora_rank", 16)
-    lora_alpha = get_config_value(config, "lora_alpha", 16)
-    lora_dropout = get_config_value(config, "lora_dropout", 0.0)
+    lora_rank = get_config_value(config, "lora_rank")
+    lora_alpha = get_config_value(config, "lora_alpha")
+    lora_dropout = get_config_value(config, "lora_dropout")
 
     unet_lora_config = LoraConfig(
         r=lora_rank,
@@ -96,9 +97,9 @@ def main():
 
     if train_text_encoder_lora:
         text_lora_config = LoraConfig(
-            r=get_config_value(config, "text_lora_rank", lora_rank),
-            lora_alpha=get_config_value(config, "text_lora_alpha", lora_alpha),
-            lora_dropout=get_config_value(config, "text_lora_dropout", lora_dropout),
+            r=get_config_value(config, "text_lora_rank"),
+            lora_alpha=get_config_value(config, "text_lora_alpha"),
+            lora_dropout=get_config_value(config, "text_lora_dropout"),
             bias="none",
             target_modules=["q_proj", "k_proj", "v_proj", "out_proj"],
         )
@@ -112,8 +113,8 @@ def main():
         instance_prompt=get_config_value(config, "instance_prompt"),
         class_data_dir=config.get("class_data_dir"),
         class_prompt=config.get("class_prompt"),
-        image_size=get_config_value(config, "resolution", 512),
-        center_crop=get_config_value(config, "center_crop", False),
+        image_size=get_config_value(config, "resolution"),
+        center_crop=get_config_value(config, "center_crop"),
     )
 
     if with_prior_preservation and not config.get("class_data_dir"):
@@ -121,9 +122,9 @@ def main():
 
     train_dataloader = DataLoader(
         dataset,
-        batch_size=get_config_value(config, "train_batch_size", 1),
+        batch_size=get_config_value(config, "train_batch_size"),
         shuffle=True,
-        num_workers=get_config_value(config, "dataloader_num_workers", 4),
+        num_workers=get_config_value(config, "dataloader_num_workers"),
         collate_fn=lambda examples: collate_dreambooth_batch(
             examples,
             tokenizer=tokenizer,
@@ -131,12 +132,12 @@ def main():
         ),
     )
 
-    learning_rate = get_config_value(config, "learning_rate", 1e-4)
-    text_learning_rate = get_config_value(config, "text_learning_rate", learning_rate)
-    adam_beta1 = get_config_value(config, "adam_beta1", 0.9)
-    adam_beta2 = get_config_value(config, "adam_beta2", 0.999)
-    adam_weight_decay = get_config_value(config, "adam_weight_decay", 1e-2)
-    adam_epsilon = get_config_value(config, "adam_epsilon", 1e-8)
+    learning_rate = get_config_value(config, "learning_rate")
+    text_learning_rate = get_config_value(config, "text_learning_rate")
+    adam_beta1 = get_config_value(config, "adam_beta1")
+    adam_beta2 = get_config_value(config, "adam_beta2")
+    adam_weight_decay = get_config_value(config, "adam_weight_decay")
+    adam_epsilon = get_config_value(config, "adam_epsilon")
 
     params_to_optimize = [{"params": [p for p in unet.parameters() if p.requires_grad], "lr": learning_rate}]
     if train_text_encoder_lora:
@@ -154,20 +155,14 @@ def main():
         eps=adam_epsilon,
     )
 
-    max_train_steps = get_config_value(config, "max_train_steps", 1000)
-    num_train_epochs = get_config_value(config, "num_train_epochs", None)
-    if num_train_epochs is None:
-        steps_per_epoch = math.ceil(len(train_dataloader) / accelerator.gradient_accumulation_steps)
-        num_train_epochs = math.ceil(max_train_steps / steps_per_epoch)
-    else:
-        max_train_steps = num_train_epochs * math.ceil(
-            len(train_dataloader) / accelerator.gradient_accumulation_steps
-        )
+    max_train_steps = get_config_value(config, "max_train_steps")
+    steps_per_epoch = math.ceil(len(train_dataloader) / accelerator.gradient_accumulation_steps)
+    num_train_epochs = math.ceil(max_train_steps / steps_per_epoch)
 
     lr_scheduler = get_scheduler(
-        name=get_config_value(config, "lr_scheduler", "constant"),
+        name=get_config_value(config, "lr_scheduler"),
         optimizer=optimizer,
-        num_warmup_steps=get_config_value(config, "lr_warmup_steps", 0),
+        num_warmup_steps=get_config_value(config, "lr_warmup_steps"),
         num_training_steps=max_train_steps,
     )
 
@@ -192,18 +187,20 @@ def main():
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
     progress_bar.set_description("Training")
 
-    prior_loss_weight = get_config_value(config, "prior_loss_weight", 1.0)
-    max_grad_norm = get_config_value(config, "max_grad_norm", 1.0)
-    checkpointing_steps = get_config_value(config, "checkpointing_steps", 500)
-    validation_steps = get_config_value(config, "validation_steps", 500)
-    validation_prompt = get_config_value(config, "validation_prompt", None)
+    prior_loss_weight = get_config_value(config, "prior_loss_weight")
+    max_grad_norm = get_config_value(config, "max_grad_norm")
+    checkpointing_steps = get_config_value(config, "checkpointing_steps")
+    validation_steps = get_config_value(config, "validation_steps")
+    validation_prompt = get_config_value(config, "validation_prompt")
 
     for _ in range(num_train_epochs):
         for batch in train_dataloader:
             with accelerator.accumulate(unet):
-                pixel_values = batch["pixel_values"].to(dtype=weight_dtype)
+                vae_dtype = next(vae.parameters()).dtype
+                pixel_values = batch["pixel_values"].to(dtype=vae_dtype)
                 latents = vae.encode(pixel_values).latent_dist.sample()
                 latents = latents * vae.config.scaling_factor
+                latents = latents.to(dtype=weight_dtype)
 
                 noise = torch.randn_like(latents)
                 timesteps = torch.randint(
@@ -277,10 +274,9 @@ def main():
                         prompt=validation_prompt,
                         output_dir=output_dir / "validation",
                         step=global_step,
-                        num_images=get_config_value(config, "num_validation_images", 4),
-                        guidance_scale=get_config_value(config, "validation_guidance_scale", 7.5),
-                        num_inference_steps=get_config_value(config, "validation_steps_infer", 30),
-                        generator_seed=get_config_value(config, "seed", None),
+                        num_images=get_config_value(config, "num_validation_images"),
+                        guidance_scale=get_config_value(config, "validation_guidance_scale"),
+                        num_inference_steps=get_config_value(config, "validation_steps_infer"),
                     )
                     del val_pipe
 
