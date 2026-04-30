@@ -1,10 +1,10 @@
 pretrained_model_path: base_models/sd15/full
 output_dir: models/dreambooth_full_sd15
-subject_name: dog7
-unique_token: vks
+subject_name: dog
+unique_token: kqwei
 prompt_templates_path: configs/prompt_templates.yaml
 subject_class_map:
-  dog7: dog
+  dog: dog
 
 instance_data_root: data/processed/instance
 class_data_root: data/processed/class
@@ -21,7 +21,7 @@ dataloader_num_workers: 4
 
 train_batch_size: 1
 gradient_accumulation_steps: 1
-max_train_steps: 1000
+max_train_steps: 400
 learning_rate: 0.000005
 text_encoder_learning_rate: 0.000005
 train_text_encoder: false
@@ -35,11 +35,15 @@ adam_weight_decay: 0.01
 adam_epsilon: 0.00000001
 
 mixed_precision: fp16
-seed: 42
+seed: 4782
 log_with: null
 
-checkpointing_steps: 200
-validation_steps: 200
+checkpointing_steps: 50
+validation_steps: 50
+tail_checkpointing_start_step: 300
+tail_checkpointing_steps: 25
+tail_validation_start_step: 300
+tail_validation_steps: 25
 num_validation_images: 4
 validation_guidance_scale: 7.5
 validation_steps_infer: 30

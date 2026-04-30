@@ -15,14 +15,28 @@ from peft import LoraConfig
 from peft.utils import get_peft_model_state_dict
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+from src.training.class_image_generation import generate_class_images
 from src.training.utils import (
     DreamBoothDataset,
     collate_dreambooth_batch,
+    compute_class_image_target,
+    count_images,
+    discover_images,
     load_yaml_config,
     save_validation_images,
     get_config_value,
     resolve_base_config_runtime_values,
 )
+
+def should_run_event(
+    global_step: int,
+    base_every: int,
+    tail_start_step: int | None,
+    tail_every: int | None,
+) -> bool:
+    if tail_start_step is not None and tail_every is not None and global_step >= tail_start_step:
+        return global_step % tail_every == 0
+    return global_step % base_every == 0
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="LoRA DreamBooth fine-tuning.")
@@ -56,6 +70,42 @@ def main():
     # PPS is replaced by lora so default is False
     with_prior_preservation = get_config_value(config, "with_prior_preservation")
     train_text_encoder_lora = get_config_value(config, "train_text_encoder_lora")
+    instance_data_dir = get_config_value(config, "instance_data_dir")
+
+    class_data_dir = config.get("class_data_dir")
+    class_prompt = config.get("class_prompt")
+    if with_prior_preservation:
+        class_data_dir = get_config_value(config, "class_data_dir")
+        class_prompt = get_config_value(config, "class_prompt")
+        Path(class_data_dir).mkdir(parents=True, exist_ok=True)
+
+        num_instance_images = len(discover_images(instance_data_dir))
+        target_class_images = compute_class_image_target(
+            num_instance_images=num_instance_images,
+            class_images_per_instance=get_config_value(config, "class_images_per_instance"),
+        )
+        existing_class_images = count_images(class_data_dir)
+        missing_class_images = max(target_class_images - existing_class_images, 0)
+        class_stem = Path(class_data_dir).name.replace(" ", "_")
+        file_prefix = f"class_{class_stem}" if class_stem else "class"
+        accelerator.print(
+            f"Class image target: {target_class_images}, existing: {existing_class_images}, "
+            f"missing: {missing_class_images}."
+        )
+        if missing_class_images > 0 and accelerator.is_main_process:
+            generate_class_images(
+                pretrained_model_path=base_model_path,
+                class_prompt=class_prompt,
+                class_data_dir=class_data_dir,
+                num_images_to_generate=missing_class_images,
+                batch_size=get_config_value(config, "class_gen_batch_size"),
+                guidance_scale=get_config_value(config, "class_gen_guidance_scale"),
+                num_inference_steps=get_config_value(config, "class_gen_num_inference_steps"),
+                seed=config.get("seed"),
+                mixed_precision=get_config_value(config, "mixed_precision"),
+                file_prefix=file_prefix,
+            )
+        accelerator.wait_for_everyone()
 
     pipeline = StableDiffusionPipeline.from_pretrained(
         base_model_path,
@@ -109,16 +159,13 @@ def main():
     text_encoder.train()
 
     dataset = DreamBoothDataset(
-        instance_data_dir=get_config_value(config, "instance_data_dir"),
+        instance_data_dir=instance_data_dir,
         instance_prompt=get_config_value(config, "instance_prompt"),
-        class_data_dir=config.get("class_data_dir"),
-        class_prompt=config.get("class_prompt"),
+        class_data_dir=class_data_dir,
+        class_prompt=class_prompt,
         image_size=get_config_value(config, "resolution"),
         center_crop=get_config_value(config, "center_crop"),
     )
-
-    if with_prior_preservation and not config.get("class_data_dir"):
-        raise ValueError("class_data_dir is required when with_prior_preservation=True.")
 
     train_dataloader = DataLoader(
         dataset,
@@ -192,6 +239,10 @@ def main():
     checkpointing_steps = get_config_value(config, "checkpointing_steps")
     validation_steps = get_config_value(config, "validation_steps")
     validation_prompt = get_config_value(config, "validation_prompt")
+    tail_checkpointing_start_step = config.get("tail_checkpointing_start_step")
+    tail_checkpointing_steps = config.get("tail_checkpointing_steps")
+    tail_validation_start_step = config.get("tail_validation_start_step")
+    tail_validation_steps = config.get("tail_validation_steps")
 
     for _ in range(num_train_epochs):
         for batch in train_dataloader:
@@ -242,7 +293,12 @@ def main():
                 progress_bar.update(1)
                 global_step += 1
 
-                if accelerator.is_main_process and global_step % checkpointing_steps == 0:
+                if accelerator.is_main_process and should_run_event(
+                    global_step=global_step,
+                    base_every=checkpointing_steps,
+                    tail_start_step=tail_checkpointing_start_step,
+                    tail_every=tail_checkpointing_steps,
+                ):
                     checkpoint_dir = output_dir / f"checkpoint-{global_step:06d}"
                     checkpoint_dir.mkdir(parents=True, exist_ok=True)
                     StableDiffusionPipeline.save_lora_weights(
@@ -258,7 +314,12 @@ def main():
                 if (
                     accelerator.is_main_process
                     and validation_prompt
-                    and global_step % validation_steps == 0
+                    and should_run_event(
+                        global_step=global_step,
+                        base_every=validation_steps,
+                        tail_start_step=tail_validation_start_step,
+                        tail_every=tail_validation_steps,
+                    )
                 ):
                     val_pipe = StableDiffusionPipeline.from_pretrained(
                         base_model_path,

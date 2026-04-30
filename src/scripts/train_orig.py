@@ -27,6 +27,16 @@ from src.training.utils import (
     resolve_base_config_runtime_values,
 )
 
+def should_run_event(
+    global_step: int,
+    base_every: int,
+    tail_start_step: int | None,
+    tail_every: int | None,
+) -> bool:
+    if tail_start_step is not None and tail_every is not None and global_step >= tail_start_step:
+        return global_step % tail_every == 0
+    return global_step % base_every == 0
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Full UNet DreamBooth fine-tuning.")
     parser.add_argument(
@@ -191,6 +201,10 @@ def main() -> None:
     checkpointing_steps = get_config_value(config, "checkpointing_steps")
     validation_steps = get_config_value(config, "validation_steps")
     validation_prompt = get_config_value(config, "validation_prompt")
+    tail_checkpointing_start_step = config.get("tail_checkpointing_start_step")
+    tail_checkpointing_steps = config.get("tail_checkpointing_steps")
+    tail_validation_start_step = config.get("tail_validation_start_step")
+    tail_validation_steps = config.get("tail_validation_steps")
 
     for _ in range(num_train_epochs):
         for batch in train_dataloader:
@@ -239,7 +253,12 @@ def main() -> None:
                 progress_bar.update(1)
                 global_step += 1
 
-                if accelerator.is_main_process and global_step % checkpointing_steps == 0:
+                if accelerator.is_main_process and should_run_event(
+                    global_step=global_step,
+                    base_every=checkpointing_steps,
+                    tail_start_step=tail_checkpointing_start_step,
+                    tail_every=tail_checkpointing_steps,
+                ):
                     checkpoint_dir = output_dir / f"checkpoint-{global_step:06d}"
                     checkpoint_dir.mkdir(parents=True, exist_ok=True)
                     accelerator.unwrap_model(unet).save_pretrained(checkpoint_dir / "unet")
@@ -251,7 +270,12 @@ def main() -> None:
                 if (
                     accelerator.is_main_process
                     and validation_prompt
-                    and global_step % validation_steps == 0
+                    and should_run_event(
+                        global_step=global_step,
+                        base_every=validation_steps,
+                        tail_start_step=tail_validation_start_step,
+                        tail_every=tail_validation_steps,
+                    )
                 ):
                     val_pipe = StableDiffusionPipeline.from_pretrained(
                         base_model_path,
