@@ -44,9 +44,7 @@ class CLIPEvaluator:
         real_embeddings = self.embed(real)
 
         sim_matrix = generated_embeddings @ real_embeddings.T
-        score = sim_matrix.mean().item()
-        return score
-    
+        return sim_matrix
 
     def clip_t_score(self, generated_images, real_texts):
         """
@@ -63,4 +61,4 @@ class CLIPEvaluator:
             
             sim = F.cosine_similarity(generated_embeddings, real_embeddings)
         
-        return sim.item()
+        return sim

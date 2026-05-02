@@ -36,7 +36,7 @@ class DINOEvaluator:
         
     def dino_score(self, generated, real):
         """
-        Compute the DINO score between the generated images and real images
+        Compute the DINO score matrix between generated and real images.
 
         Args:
             generated (_type_): _description_
@@ -50,6 +50,7 @@ class DINOEvaluator:
         
         # this computes the avg sim comparing each to all
         sim_matrix = generated_embeddings @ real_embeddings.T
-        score = sim_matrix.mean().item()
-        return score
+        return sim_matrix
+        # score = sim_matrix.mean().item()
+        # return score
     
