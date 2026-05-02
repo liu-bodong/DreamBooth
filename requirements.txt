@@ -22,3 +22,4 @@ tqdm
 
 # Dev
 ruff
+huggingface_hub

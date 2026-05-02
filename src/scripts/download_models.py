@@ -18,21 +18,21 @@ MODEL_SPECS = [
     #     "kind": "trainable_full",
     #     "base_repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
     # },
-    {
-        "name": "sdxl",
-        "kind": "trainable_full",
-        "base_repo": "stabilityai/stable-diffusion-xl-base-1.0",
-    },
-    {
-        "name": "sd3_medium",
-        "kind": "trainable_full",
-        "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
-    },
-    {
-        "name": "sd35_medium",
-        "kind": "trainable_full",
-        "base_repo": "stabilityai/stable-diffusion-3.5-medium",
-    },
+    # {
+    #     "name": "sdxl",
+    #     "kind": "trainable_full",
+    #     "base_repo": "stabilityai/stable-diffusion-xl-base-1.0",
+    # },
+    # {
+    #     "name": "sd3_medium",
+    #     "kind": "trainable_full",
+    #     "base_repo": "stabilityai/stable-diffusion-3-medium-diffusers",
+    # },
+    # {
+    #     "name": "sd35_medium",
+    #     "kind": "trainable_full",
+    #     "base_repo": "stabilityai/stable-diffusion-3.5-medium",
+    # },
     # {
     #     "name": "sd3_medium",
     #     "kind": "trainable_full",
@@ -66,6 +66,13 @@ MODEL_SPECS = [
     #     "quant_repo": "city96/stable-diffusion-3.5-large-gguf",
     #     "reason": "quantized + large; inference-oriented and heavy for training",
     # },
+    {
+        "name": "flux2_klein_base_4b_quant",
+        "kind": "quantized_with_base_config",
+        "base_repo": "black-forest-labs/FLUX.2-klein-base-4B",
+        "quant_repo": "Disty0/FLUX.2-klein-4B-SDNQ-4bit-dynamic",
+        "reason": "SDNQ 4-bit quantized weights; good for training with aggressive quantization",
+    }
 ]
 
 # Candidate repos kept for reference but not active by default:
