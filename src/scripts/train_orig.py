@@ -127,8 +127,8 @@ def main() -> None:
     dataset = DreamBoothDataset(
         instance_data_dir=instance_data_dir,
         instance_prompt=get_config_value(config, "instance_prompt"),
-        class_data_dir=class_data_dir,
-        class_prompt=class_prompt,
+        class_data_dir=class_data_dir if with_prior_preservation else None,
+        class_prompt=class_prompt if with_prior_preservation else None,
         image_size=get_config_value(config, "resolution"),
         center_crop=get_config_value(config, "center_crop"),
     )

@@ -36,6 +36,8 @@ class DiversityEvaluator:
             img2 = images[j].unsqueeze(0)  # Shape: (1, 3, H, W)
             score = self.lpips(img1, img2).item()
             scores.append(score)
+            
+        scores = torch.tensor(scores)
         
         return scores
         
