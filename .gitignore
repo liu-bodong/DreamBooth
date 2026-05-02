@@ -8,6 +8,7 @@ data/interim/*
 data/processed/*
 !data/processed/.gitkeep
 reports/images/
+outputs/
 wandb/
 local/
 .vscode/

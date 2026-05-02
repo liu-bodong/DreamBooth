@@ -6,23 +6,29 @@ from pathlib import Path
 import torch
 from diffusers import StableDiffusionPipeline
 
-from src.training.utils import get_config_value, load_yaml_config, resolve_base_config_runtime_values
+from src.training.utils import get_config_value, load_yaml_config, merge_configs, resolve_base_config_runtime_values
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate images from a DreamBooth LoRA checkpoint.")
     parser.add_argument("--config", type=str, required=True)
+    parser.add_argument("--override", type=str, default=None, help="Path to override YAML config file.")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to LoRA checkpoint directory.")
     parser.add_argument("--prompt", type=str, default=None, help="Override the prompt from config.")
     parser.add_argument("--num_images", type=int, default=4)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--cfg", type=float, default=None, help="Override guidance scale from config.")
+    parser.add_argument("--num_steps", type=int, default=None, help="Override number of inference steps from config.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    config = resolve_base_config_runtime_values(load_yaml_config(args.config))
+    config = load_yaml_config(args.config)
+    if args.override:
+        config = merge_configs(config, load_yaml_config(args.override))
+    config = resolve_base_config_runtime_values(config)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -49,8 +55,8 @@ def main() -> None:
 
     images = pipeline(
         prompt=[prompt] * args.num_images,
-        guidance_scale=get_config_value(config, "validation_guidance_scale"),
-        num_inference_steps=get_config_value(config, "validation_steps_infer"),
+        guidance_scale=args.cfg if args.cfg is not None else get_config_value(config, "validation_guidance_scale"),
+        num_inference_steps=args.num_steps if args.num_steps is not None else get_config_value(config, "validation_steps_infer"),
         generator=generator,
     ).images
 

@@ -23,6 +23,10 @@ def load_yaml_config(path: str | Path) -> dict[str, Any]:
     return data
 
 
+def merge_configs(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    return {**base, **override}
+
+
 def discover_images(image_dir: str | Path) -> list[Path]:
     root = Path(image_dir)
     if not root.exists() or not root.is_dir():

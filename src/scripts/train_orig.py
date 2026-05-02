@@ -22,6 +22,7 @@ from src.training.utils import (
     count_images,
     discover_images,
     load_yaml_config,
+    merge_configs,
     save_validation_images,
     get_config_value,
     resolve_base_config_runtime_values,
@@ -39,18 +40,16 @@ def should_run_event(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Full UNet DreamBooth fine-tuning.")
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Path to base YAML config file.",
-    )
+    parser.add_argument("--config", type=str, required=True, help="Path to base YAML config file.")
+    parser.add_argument("--override", type=str, default=None, help="Path to override YAML config file.")
     return parser.parse_args()
 
 def main() -> None:
-
     args = parse_args()
-    config = resolve_base_config_runtime_values(load_yaml_config(args.config))
+    config = load_yaml_config(args.config)
+    if args.override:
+        config = merge_configs(config, load_yaml_config(args.override))
+    config = resolve_base_config_runtime_values(config)
 
     output_dir = Path(get_config_value(config, "output_dir"))
     output_dir.mkdir(parents=True, exist_ok=True)
