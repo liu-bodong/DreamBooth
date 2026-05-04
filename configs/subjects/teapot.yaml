@@ -1,0 +1,10 @@
+output_dir: models/sd15_lora_teapot
+subject_name: teapot
+unique_token: kqwei
+subject_class_map:
+  teapot: teapot
+
+instance_data_root: data/instance
+class_data_root: data/class/sd15
+
+train_batch_size: 8

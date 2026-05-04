@@ -33,6 +33,7 @@ def main() -> None:
 
     instance_data_dir = get_config_value(config, "instance_data_dir")
     class_data_dir = get_config_value(config, "class_data_dir")
+    class_data_dir = str(Path(class_data_dir).parent / config['model_name'] / Path(class_data_dir).name)
     class_prompt = get_config_value(config, "class_prompt")
     pretrained_model_path = get_config_value(config, "pretrained_model_path")
     Path(class_data_dir).mkdir(parents=True, exist_ok=True)

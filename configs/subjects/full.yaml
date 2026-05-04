@@ -1,0 +1,9 @@
+checkpointing_steps: 9999
+validation_steps: 9999
+tail_checkpointing_start_step: 1
+tail_checkpointing_steps: 210
+tail_validation_start_step: 1
+tail_validation_steps: 210
+num_validation_images: 4
+validation_guidance_scale: 4
+validation_steps_infer: 40

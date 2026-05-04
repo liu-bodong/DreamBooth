@@ -14,7 +14,6 @@ from accelerate.utils import set_seed
 from diffusers import DDPMScheduler, get_scheduler, StableDiffusionPipeline
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from src.training.class_image_generation import generate_class_images
 from src.training.utils import (
     DreamBoothDataset,
     collate_dreambooth_batch,
@@ -73,7 +72,8 @@ def main() -> None:
     if with_prior_preservation:
         class_data_dir = get_config_value(config, "class_data_dir")
         class_prompt = get_config_value(config, "class_prompt")
-        Path(class_data_dir).mkdir(parents=True, exist_ok=True)
+        model_name = get_config_value(config, "model_name")
+        class_data_dir = str(Path(class_data_dir).parent / model_name / Path(class_data_dir).name)
 
         num_instance_images = len(discover_images(instance_data_dir))
         target_class_images = compute_class_image_target(
@@ -81,27 +81,16 @@ def main() -> None:
             class_images_per_instance=get_config_value(config, "class_images_per_instance"),
         )
         existing_class_images = count_images(class_data_dir)
-        missing_class_images = max(target_class_images - existing_class_images, 0)
-        class_stem = Path(class_data_dir).name.replace(" ", "_")
-        file_prefix = f"class_{class_stem}" if class_stem else "class"
         accelerator.print(
-            f"Class image target: {target_class_images}, existing: {existing_class_images}, "
-            f"missing: {missing_class_images}."
+            f"Class image target: {target_class_images}, existing: {existing_class_images}."
         )
-        if missing_class_images > 0 and accelerator.is_main_process:
-            generate_class_images(
-                pretrained_model_path=base_model_path,
-                class_prompt=class_prompt,
-                class_data_dir=class_data_dir,
-                num_images_to_generate=missing_class_images,
-                batch_size=get_config_value(config, "class_gen_batch_size"),
-                guidance_scale=get_config_value(config, "class_gen_guidance_scale"),
-                num_inference_steps=get_config_value(config, "class_gen_num_inference_steps"),
-                seed=config.get("seed"),
-                mixed_precision=get_config_value(config, "mixed_precision"),
-                file_prefix=file_prefix,
+        if existing_class_images < target_class_images:
+            accelerator.print(
+                f"ERROR: {target_class_images - existing_class_images} class images missing "
+                f"in {class_data_dir}.\n"
+                f"Run: python -m src.scripts.generate_class_images --config <your_config>"
             )
-        accelerator.wait_for_everyone()
+            raise SystemExit(1)
 
     pipeline = StableDiffusionPipeline.from_pretrained(
         base_model_path,
@@ -113,6 +102,8 @@ def main() -> None:
     vae = pipeline.vae
     unet = pipeline.unet
     noise_scheduler = cast(DDPMScheduler, DDPMScheduler.from_config(pipeline.scheduler.config))
+    vae_shift = float(getattr(vae.config, "shift_factor", 0.0) or 0.0)
+    vae_scale = float(getattr(vae.config, "scaling_factor", 1.0) or 1.0)
     del pipeline
 
     vae.requires_grad_(False)
@@ -211,8 +202,7 @@ def main() -> None:
                 vae_dtype = next(vae.parameters()).dtype
                 pixel_values = batch["pixel_values"].to(dtype=vae_dtype)
                 latents = vae.encode(pixel_values).latent_dist.sample()
-                latents = latents * vae.config.scaling_factor
-                latents = latents.to(dtype=weight_dtype)
+                latents = ((latents - vae_shift) * vae_scale).to(weight_dtype)
 
                 noise = torch.randn_like(latents)
                 timesteps = torch.randint(

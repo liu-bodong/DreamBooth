@@ -4,7 +4,8 @@ import argparse
 from pathlib import Path
 
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import AutoPipelineForText2Image, UNet2DConditionModel
+from transformers import CLIPTextModel
 
 from src.training.utils import get_config_value, load_yaml_config, merge_configs, resolve_base_config_runtime_values
 
@@ -38,13 +39,33 @@ def main() -> None:
     base_model_path = get_config_value(config, "pretrained_model_path")
     prompt = args.prompt or get_config_value(config, "instance_prompt")
 
-    pipeline = StableDiffusionPipeline.from_pretrained(
-        base_model_path,
-        safety_checker=None,
-        requires_safety_checker=False,
-        torch_dtype=weight_dtype,
-    ).to(device)
-    pipeline.load_lora_weights(args.checkpoint)
+    checkpoint_path = Path(args.checkpoint)
+    if config.get("lora_rank") is not None:
+        pipeline = AutoPipelineForText2Image.from_pretrained(
+            base_model_path, torch_dtype=weight_dtype
+        ).to(device)
+        pipeline.load_lora_weights(str(checkpoint_path))
+    else:
+        # Full fine-tuning: load base pipeline then swap in the saved backbone.
+        pipeline = AutoPipelineForText2Image.from_pretrained(
+            base_model_path, torch_dtype=weight_dtype
+        ).to(device)
+        unet_dir = checkpoint_path / "unet"
+        transformer_dir = checkpoint_path / "transformer"
+        if unet_dir.exists():
+            pipeline.unet = UNet2DConditionModel.from_pretrained(
+                unet_dir, torch_dtype=weight_dtype
+            ).to(device)
+        elif transformer_dir.exists():
+            transformer_cls = type(pipeline.transformer)
+            pipeline.transformer = transformer_cls.from_pretrained(
+                transformer_dir, torch_dtype=weight_dtype
+            ).to(device)
+        text_encoder_path = checkpoint_path / "text_encoder"
+        if text_encoder_path.exists():
+            pipeline.text_encoder = CLIPTextModel.from_pretrained(
+                text_encoder_path, torch_dtype=weight_dtype
+            ).to(device)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

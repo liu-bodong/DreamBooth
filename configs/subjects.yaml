@@ -12,6 +12,9 @@ subjects:
   berry_bowl:
     class_name: bowl
     subject_type: object
+  bird:
+    class_name: bird
+    subject_type: live
   can:
     class_name: can
     subject_type: object
@@ -74,7 +77,7 @@ subjects:
     class_name: toy
     subject_type: object
   red_cartoon:
-    class_name: cartoon
+    class_name: red_cartoon
     subject_type: object
   robot_toy:
     class_name: toy

@@ -1,17 +1,18 @@
+model_name: sd15
 pretrained_model_path: base_models/sd15/full
-output_dir: models/dreambooth_lora_sd15
-subject_name: dog
-unique_token: kqwei
+output_dir: models/sd15_lora/red_cartoon
+subject_name: red_cartoon
+unique_token: zwmfk
 prompt_templates_path: configs/prompt_templates.yaml
 subject_class_map:
-  dog: dog
+  red_cartoon: red_cartoon
 
-instance_data_root: data/processed/instance
-class_data_root: data/processed/class
+instance_data_root: data/instance
+class_data_root: data/class
 with_prior_preservation: true
 prior_loss_weight: 1.0
-class_images_per_instance: 200
-class_gen_batch_size: 4
+class_images_per_instance: 50
+class_gen_batch_size: 16
 class_gen_guidance_scale: 7.5
 class_gen_num_inference_steps: 30
 
@@ -19,6 +20,7 @@ resolution: 512
 center_crop: false
 dataloader_num_workers: 4
 
+use_8bit_adam: true
 train_batch_size: 1
 gradient_accumulation_steps: 1
 max_train_steps: 300
@@ -45,12 +47,12 @@ mixed_precision: fp16
 seed: 4782
 log_with: null
 
-checkpointing_steps: 50
-validation_steps: 50
-tail_checkpointing_start_step: 400
-tail_checkpointing_steps: 50
-tail_validation_start_step: 400
-tail_validation_steps: 50
+checkpointing_steps: 9999
+validation_steps: 9999
+tail_checkpointing_start_step: 200
+tail_checkpointing_steps: 30
+tail_validation_start_step: 200
+tail_validation_steps: 30
 num_validation_images: 4
-validation_guidance_scale: 7.5
-validation_steps_infer: 30
+validation_guidance_scale: 4
+validation_steps_infer: 40

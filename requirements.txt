@@ -1,25 +1,18 @@
-# Core ML
 torch
 torchvision
-
-# Diffusion
-# diffusers
-# transformers
-
+diffusers
+transformers
+peft
+sdnq
+bitsandbytes
+lpips
 # Data
 # Pillow
 numpy
 # datasets
-
-# Config
 pyyaml
-
-# Experiment tracking
 wandb
-
-# Utilities
 tqdm
-
-# Dev
 ruff
 huggingface_hub
+accelerate

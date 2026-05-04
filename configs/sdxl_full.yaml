@@ -1,21 +1,22 @@
-pretrained_model_path: base_models/sd15/full
-output_dir: models/dreambooth_full_sd15
+model_name: sdxl
+pretrained_model_path: base_models/sdxl/full
+output_dir: models/sdxl_full_dog
 subject_name: dog
 unique_token: kqwei
 prompt_templates_path: configs/prompt_templates.yaml
 subject_class_map:
   dog: dog
 
-instance_data_root: data/processed/instance
-class_data_root: data/processed/class
+instance_data_root: data/instance
+class_data_root: data/class
 with_prior_preservation: true
 prior_loss_weight: 1.0
 class_images_per_instance: 200
-class_gen_batch_size: 4
+class_gen_batch_size: 8
 class_gen_guidance_scale: 7.5
 class_gen_num_inference_steps: 30
 
-resolution: 512
+resolution: 1024
 center_crop: false
 dataloader_num_workers: 4
 
@@ -38,12 +39,12 @@ mixed_precision: fp16
 seed: 4782
 log_with: null
 
-checkpointing_steps: 50
-validation_steps: 50
-tail_checkpointing_start_step: 300
-tail_checkpointing_steps: 25
-tail_validation_start_step: 300
-tail_validation_steps: 25
+checkpointing_steps: 9999
+validation_steps: 9999
+tail_checkpointing_start_step: 170
+tail_checkpointing_steps: 30
+tail_validation_start_step: 170
+tail_validation_steps: 30
 num_validation_images: 4
-validation_guidance_scale: 7.5
-validation_steps_infer: 30
+validation_guidance_scale: 4
+validation_steps_infer: 40

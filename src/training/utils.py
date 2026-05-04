@@ -14,6 +14,20 @@ from PIL import Image
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
+# Qwen3 tokenizers exported from quantized checkpoints often lose their chat_template.
+# This minimal template matches the standard Qwen3/Qwen2.5 format used by Flux2 Klein.
+QWEN3_CHAT_TEMPLATE = (
+    "{% for message in messages %}"
+    "{% if loop.first and messages[0]['role'] != 'system' %}"
+    "{{ '<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+    "<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}"
+    "{% else %}"
+    "{{ '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}"
+    "{% endif %}"
+    "{% endfor %}"
+    "{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
+)
+
 
 def load_yaml_config(path: str | Path) -> dict[str, Any]:
     with Path(path).open("r", encoding="utf-8") as handle:
@@ -276,7 +290,8 @@ def save_validation_images(
     if generator_seed is not None:
         generator = torch.Generator(device=pipeline.device).manual_seed(generator_seed + step)
 
-    unet_dtype = next(pipeline.unet.parameters()).dtype
+    backbone = getattr(pipeline, "unet", None) or pipeline.transformer
+    unet_dtype = next(backbone.parameters()).dtype
     device_type = pipeline.device.type
     use_autocast = device_type in {"cuda", "mps"} and unet_dtype in {torch.float16, torch.bfloat16}
     vae_dtype = next(pipeline.vae.parameters()).dtype
@@ -307,3 +322,38 @@ def save_validation_images(
         save_paths.append(file_path)
 
     return save_paths
+
+
+def pack_latents(latents: torch.Tensor) -> torch.Tensor:
+    """Pack (B, C, H, W) latents into Flux2 sequence format (B, H//2 * W//2, C*4)."""
+    B, C, H, W = latents.shape
+    latents = latents.view(B, C, H // 2, 2, W // 2, 2)
+    latents = latents.permute(0, 2, 4, 1, 3, 5)
+    return latents.reshape(B, (H // 2) * (W // 2), C * 4)
+
+
+def prepare_latent_image_ids(
+    batch_size: int,
+    height: int,
+    width: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Compute Flux2 image position IDs: (B, height*width, 4) with [T=0, h, w, L=0] coords."""
+    ids = torch.zeros(height, width, 4)
+    ids[..., 1] = torch.arange(height)[:, None]
+    ids[..., 2] = torch.arange(width)[None, :]
+    ids = ids.reshape(height * width, 4)
+    return ids.to(device=device, dtype=dtype).unsqueeze(0).expand(batch_size, -1, -1)
+
+
+def prepare_text_ids(
+    batch_size: int,
+    seq_len: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Compute Flux2 text position IDs: (B, seq_len, 4) with [T=0, H=0, W=0, l_idx] coords."""
+    ids = torch.zeros(seq_len, 4)
+    ids[:, 3] = torch.arange(seq_len)
+    return ids.to(device=device, dtype=dtype).unsqueeze(0).expand(batch_size, -1, -1)

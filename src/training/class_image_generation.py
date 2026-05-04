@@ -3,10 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from diffusers import StableDiffusionPipeline
+try:
+    import sdnq  # noqa: F401 — registers SDNQ quantization support into diffusers/transformers
+except ImportError:
+    pass
+
+from diffusers import AutoPipelineForText2Image, Flux2KleinPipeline
 from tqdm.auto import tqdm
 
-from src.training.utils import count_images
+from src.training.utils import count_images, QWEN3_CHAT_TEMPLATE
 
 
 def _resolve_torch_dtype(mixed_precision: str | None) -> torch.dtype:
@@ -38,12 +43,12 @@ def generate_class_images(
     dtype = _resolve_torch_dtype(mixed_precision)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    pipe = StableDiffusionPipeline.from_pretrained(
+    pipe = AutoPipelineForText2Image.from_pretrained(
         pretrained_model_path,
-        safety_checker=None,
-        requires_safety_checker=False,
         torch_dtype=dtype,
     ).to(device)
+    if isinstance(pipe, Flux2KleinPipeline) and not getattr(pipe.tokenizer, "chat_template", None):
+        pipe.tokenizer.chat_template = QWEN3_CHAT_TEMPLATE
     pipe.set_progress_bar_config(disable=True)
 
     created = 0
