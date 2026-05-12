@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--override", type=str, default=None, help="Path to override YAML config file.")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to LoRA checkpoint directory.")
     parser.add_argument("--prompt", type=str, default=None, help="Override the prompt from config.")
-    parser.add_argument("--num_images", type=int, default=4)
+    parser.add_argument("--num_images", type=int, default=16)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--cfg", type=float, default=None, help="Override guidance scale from config.")

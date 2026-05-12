@@ -11,5 +11,5 @@ def load_image(image_path):
 
 def load_images_tensor(image_paths, transform, device):
     images = [load_image(path) for path in image_paths]
-    images_tensor = torch.stack([transform(img) for img in images]).to(torch.device)
+    images_tensor = torch.stack([transform(img) for img in images]).to(device)
     return images_tensor
