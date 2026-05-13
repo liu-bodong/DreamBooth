@@ -1,0 +1,47 @@
+extended_prompts:
+  # Re-contextualization
+  # - tag: in_snow
+  #   template: "a photo of {unique_token} {class_name} in the snow"
+  # - tag: on_beach
+  #   template: "a photo of {unique_token} {class_name} on the beach"
+  # - tag: in_jungle
+  #   template: "a photo of {unique_token} {class_name} in the jungle"
+  # - tag: at_sunset
+  #   template: "a photo of {unique_token} {class_name} at sunset"
+  # - tag: in_a_city
+  #   template: "a photo of {unique_token} {class_name} in a city"
+
+  # # Style transfer
+  # - tag: watercolor
+  #   template: "a watercolor painting of {unique_token} {class_name}"
+  # - tag: oil_painting
+  #   template: "an oil painting of {unique_token} {class_name}"
+  # - tag: cartoon
+  #   template: "a cartoon illustration of {unique_token} {class_name}"
+  # - tag: pencil_sketch
+  #   template: "a pencil sketch of {unique_token} {class_name}"
+
+  
+  # Art Renditions
+  - tag: van_gogh
+    template: "a painting of {unique_token} {class_name} in the style of Van Gogh, make sure the face is also in Van Gogh's style, do not add beard or mustache"
+  # - tag: vermeers
+  #   template: "a painting of {unique_token} {class_name} in the style of Vermeer, make sure the face is also in Vermeer's style"
+  # - tag: michelangelo
+  #   template: "a painting of {unique_token} {class_name} in the style of Michelangelo"
+  - tag: ghibli
+    template: "a drawing of {unique_token} {class_name} in the style of Studio Ghibli, make it more cartoonish but keep the details of the face recognizable, use soft colors and lighting, and add a whimsical background"
+  # - tag: anime
+  #   template: "a painting of {unique_token} {class_name} in the style of Japanese anime, make it more cartoonish but keep the details of the face recognizable"
+  # - tag: moon
+  #   template: "a photo of {unique_token} {class_name} on the moon wearing a spacesuit"
+  # - tag: greek
+  #   template: "a photo of {unique_token} {class_name} as a greek god holding a lightning bolt"
+  # - tag: pencil
+  #   template: "a sketching of {unique_token} {class_name} in the style of Pencil sketch"
+  # - tag: priest
+  #   template: "a photo of {unique_token} {class_name} dressed as a priest"
+  # - tag: basketball_player
+  #   template: "a photo of {unique_token} {class_name} dressed as a basketball player"
+  
+  # Identity
