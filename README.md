@@ -39,6 +39,7 @@ DreamBooth/
 │       └── subjects/      # Subject-specific override YAMLs
 ├── data/
 │   └── raw/            # Original subject images (not committed)
+|   └── README.md       # How to download data
 ├── poster/             # Poster PDF
 ├── report/             # 2-page final report PDF
 ├── docs/               # Reference papers
