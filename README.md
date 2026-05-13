@@ -179,7 +179,7 @@ Our results across all six configurations, compared against the original paper's
 | LoRA Model (Ours) | 0.847 | 0.671 | 0.865 | **0.920** | 0.291 |
 | LoRA Model (Ours) w/ PPL | **0.372** | **0.702** | 0.857 | 0.912 | 0.294 |
 
-Our models consistently outperform the original across PRES, DIV, DINO, and CLIP-I. The strongest trend is the inclusion of PPL, which matches the original paper's conclusion that PPL counteracts language drift and improves diversity. LoRA achieved the best PRES, DIV, and CLIP-I scores overall. Note that direct numeric comparison to the original paper is imperfect because of model, epoch, and encoder differences — visual inspection remains an important complementary signal.
+Our models consistently outperform the original across PRES, DIV, DINO, and CLIP-I. The strongest trend is the inclusion of PPL, which matches the original paper's conclusion that PPL counteracts language drift and improves diversity. LoRA achieved the best PRES, DIV, and CLIP-I scores overall. Note that direct comparison to the original paper is imperfect because of model, epoch, and encoder differences — visual inspection remains an important signal.
 
 ---
 

@@ -1,0 +1,1 @@
+**Datasets:** Official [DreamBooth dataset](https://github.com/google/dreambooth) (dogs, cats, backpacks, vases, teapots, rubber ducks, sunglasses, clocks, cartoon figures) plus personal images (people). Instance images live in `data/instance/<subject>/`.
