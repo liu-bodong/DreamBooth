@@ -1,0 +1,58 @@
+model_name: sdxl
+pretrained_model_path: base_models/sdxl/full
+output_dir: models/sdxl_lora/clock
+subject_name: clock
+unique_token: htqvn
+prompt_templates_path: configs/prompt_templates.yaml
+subject_class_map:
+  clock: clock
+
+instance_data_root: data/instance
+class_data_root: data/class
+with_prior_preservation: true
+prior_loss_weight: 1.0
+class_images_per_instance: 50
+class_gen_batch_size: 2
+class_gen_guidance_scale: 7.5
+class_gen_num_inference_steps: 30
+
+resolution: 1024
+center_crop: false
+dataloader_num_workers: 4
+
+use_8bit_adam: true
+train_batch_size: 1
+gradient_accumulation_steps: 1
+max_train_steps: 800
+learning_rate: 0.0001
+text_learning_rate: 0.0001
+max_grad_norm: 1.0
+
+lora_rank: 32
+lora_alpha: 32
+lora_dropout: 0.0
+train_text_encoder_lora: false
+text_lora_rank: 8
+text_lora_alpha: 8
+text_lora_dropout: 0.0
+
+lr_scheduler: cosine
+lr_warmup_steps: 25
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 0.01
+adam_epsilon: 0.00000001
+
+mixed_precision: bf16
+seed: 4782
+log_with: null
+
+checkpointing_steps: 9999
+validation_steps: 9999
+tail_checkpointing_start_step: 400
+tail_checkpointing_steps: 30
+tail_validation_start_step: 400
+tail_validation_steps: 30
+num_validation_images: 4
+validation_guidance_scale: 4
+validation_steps_infer: 40
