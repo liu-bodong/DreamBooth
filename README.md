@@ -8,7 +8,7 @@ A re-implementation of [**DreamBooth: Fine Tuning Text-to-Image Diffusion Models
 
 ## Introduction
 
-Text-to-image diffusion models generate high-quality images from natural language prompts, but they cannot generate a *specific instance* of a subject — they can generate "a professor" but will likely fail to generate *Kilian Weinberger*. **DreamBooth** addresses this by fine-tuning a pretrained diffusion model on a small set (~3–5 images) of a target subject, binding a rare identifier token (e.g. `[V]`) to that subject's appearance. The fine-tuned model can then place the subject in novel contexts, poses, and styles. The paper also introduces a **class-specific prior preservation loss (PPL)** to counteract language drift — the tendency of the model to over-associate the class noun with the training subject, losing diversity.
+Text-to-image diffusion models can generate high-quality images from natural language prompts, but they typically cannot generate a specific instance of a subject (i.e., professor vs. Kilian Weinberger). DreamBooth addresses this problem by taking a ~3-5 images of a specific subject and fine-tunes a pretrained diffusion model so that a rare token like “[V]” associates with that subject. The fine-tuned model can then generate the subject in novel contexts, poses, styles, lighting, etc. The paper also introduces a **prior preservation loss (PPL)** to counteract language drift — the tendency of the model to over-associate the class noun with the training subject.
 
 This repo re-implements DreamBooth from scratch and extends beyond the original paper with **LoRA-based fine-tuning** and **one-shot experiments** across four pretrained models (SD-1.5, SD-XL, SD-3M, Flux2 4B).
 
@@ -16,7 +16,7 @@ This repo re-implements DreamBooth from scratch and extends beyond the original 
 
 ## Chosen Result
 
-We focused on the paper's main result: fine-tuning a pretrained text-to-image model on a few subject images that can generate the same subject in new contexts without overfitting the general class to the specific instance. In the original paper, this includes implementing the fine-tuning pipeline in Figure 3, the recontextualization examples in Figure 7, and the prior preservation loss ablation in Table 3, Figure 6, and Equation 2. We also conducted LoRA-based experimentation to determine whether a parameter-efficient fine-tuning regimen could make a meaningful difference in output quality.
+We focused on the paper’s main result: fine-tuning a pretrained text-to-image model on a few subject images that can generate the same subject in new contexts without overfitting the general class to the specific instance. In the original paper, this includes implementing the fine-tuning pipeline in Figure 3, the recontextualization examples in Figure 7, and the prior preservation loss ablation in Table 3, Figure 6, and Equation 2.
 
 > **[Results table — see Results/Insights section below]**
 
